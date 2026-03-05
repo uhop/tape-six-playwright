@@ -1,0 +1,253 @@
+# tape-six-playwright
+
+> A helper for [tape-six](https://github.com/uhop/tape-six) that runs test files in a headless browser via Playwright. Each test file runs in its own iframe inside headless Chromium. The npm package name is `tape-six-playwright` and the CLI command is `tape6-playwright`.
+
+- Real browser environment: tests run in headless Chromium with full DOM and browser API access
+- Iframe isolation: each test file runs in its own iframe
+- Cross-runtime: Node, Deno, and Bun with the same test files
+- Drop-in companion for `tape6` (worker-thread runner) and `tape6-proc` (subprocess runner)
+- Same configuration format as `tape-six`
+- Parallel execution with configurable concurrency
+- TAP, TTY (colored), JSONL, and minimal output formats
+
+## Install
+
+```bash
+npm i -D tape-six-playwright
+```
+
+Playwright's bundled Chromium is installed automatically via `postinstall`.
+
+## Quick start
+
+Write a test (`tests/test-dom.js`):
+
+```js
+import test from 'tape-six'
+
+test('DOM works', t => {
+  const el = document.createElement('div')
+  el.textContent = 'hello'
+  document.body.appendChild(el)
+  t.equal(document.body.lastChild.textContent, 'hello', 'element created')
+})
+```
+
+Run all configured tests via Playwright:
+
+```bash
+tape6-playwright --start-server --flags FO
+```
+
+## CLI: tape6-playwright
+
+Runs test files in parallel, each in its own iframe inside headless Chromium.
+
+```bash
+tape6-playwright [--flags FLAGS] [--par N] [--start-server] [--server-url URL] [--info] [tests...]
+```
+
+### Options
+
+- `--flags FLAGS` (`-f`) — output control flags (see Supported flags below).
+- `--par N` (`-p`) — number of parallel iframes. Default: all CPU cores (via `os.availableParallelism()` or `navigator.hardwareConcurrency`).
+- `--start-server` — auto-start `tape6-server` if not already running.
+- `--server-url URL` (`-u`) — server URL. Overrides `TAPE6_SERVER_URL` and `HOST`/`PORT`.
+- `--self` — prints the absolute path to `tape6-playwright.js` and exits. Used in cross-runtime scripts.
+- `--info` — prints runtime, reporter, flags, parallelism, and resolved test files, then exits. Does not require a running server.
+- Positional arguments: test file glob patterns. If none given, resolved from configuration.
+- Options accept `--flags FO` or `--flags=FO`. The `=` form does not support quoting.
+
+### Examples
+
+```bash
+# Run all configured tests
+tape6-playwright --start-server --flags FO
+
+# Run specific test files
+tape6-playwright --start-server tests/test-dom.js
+
+# Limit parallelism
+tape6-playwright --start-server --par 2 --flags FO
+
+# Use with already-running server
+tape6-playwright --flags FO
+```
+
+## Cross-runtime usage
+
+`tape6-playwright` is a Node CLI by default. For Bun and Deno, use the `--self` flag to get the script path:
+
+```json
+{
+  "scripts": {
+    "test": "tape6-playwright --start-server --flags FO",
+    "test:bun": "bun run `tape6-playwright --self` --start-server --flags FO",
+    "test:deno": "deno run -A `tape6-playwright --self` --start-server --flags FO"
+  }
+}
+```
+
+## Supported flags
+
+Flags are a string of characters. Uppercase = enabled, lowercase = disabled.
+
+- `F` — Failures only: show only failed tests.
+- `T` — show Time for each test.
+- `B` — show Banner with summary.
+- `D` — show Data of failed tests.
+- `O` — fail Once: stop at first failure.
+- `N` — show assert Number.
+- `M` — Monochrome: no colors.
+- `C` — don't Capture console output.
+- `H` — Hide streams and console output.
+
+Usage:
+
+```bash
+tape6-playwright --start-server --flags FO
+TAPE6_FLAGS=FO tape6-playwright --start-server
+```
+
+## Server
+
+`tape6-playwright` requires `tape6-server` (from `tape-six`) to serve test files to the browser.
+
+- `--start-server`: auto-starts the server before running tests.
+- Without it: the server must already be running. The runner prints instructions if it's unreachable.
+- Server URL: `TAPE6_SERVER_URL` env var, or `HOST`/`PORT`, or default `http://localhost:3000`.
+- Server endpoints used: `GET /--tests` (test file list), `GET /--patterns?q=...` (filtered file list), `GET /--importmap` (import map).
+
+## Configuration
+
+Configuration is read from `tape6.json` or the `"tape6"` section of `package.json` (same format as `tape-six`):
+
+```json
+{
+  "tape6": {
+    "browser": ["/tests/test-*.html"],
+    "tests": ["/tests/test-*.*js"],
+    "importmap": {
+      "imports": {
+        "tape-six": "/node_modules/tape-six/index.js",
+        "tape-six/": "/node_modules/tape-six/src/"
+      }
+    }
+  }
+}
+```
+
+The `importmap` section is served by `tape6-server` at `/--importmap` and injected into each iframe for module resolution.
+
+## Environment variables
+
+- `TAPE6_FLAGS` — flags string (combined with `--flags` CLI argument).
+- `TAPE6_PAR` — number of parallel iframes (overridden by `--par`).
+- `TAPE6_TAP` — force TAP reporter (any non-empty value).
+- `TAPE6_JSONL` — force JSONL reporter (any non-empty value).
+- `TAPE6_MIN` — force minimal reporter (any non-empty value).
+- `TAPE6_SERVER_URL` — full server URL override (e.g. `http://localhost:4000`). Overridden by `--server-url`.
+- `HOST` — server hostname (default: `localhost`).
+- `PORT` — server port (default: `3000`).
+
+## Architecture
+
+### Entry point
+
+`bin/tape6-playwright.js` is the CLI entry point:
+
+- With `--self`: prints its own absolute path and exits.
+- Otherwise: delegates to `bin/tape6-playwright-node.js`.
+
+### Main CLI (`bin/tape6-playwright-node.js`)
+
+1. Parses CLI arguments via `getOptions()` from `tape-six` (`--flags`, `--par`, `--start-server`, `--server-url`, `--info`, positional test patterns).
+2. Initializes the reporter via `initReporter()` from `tape-six`.
+3. Ensures `tape6-server` is reachable (auto-starts if `--start-server`).
+4. Fetches test files from server via `GET /--patterns?q=...` (if patterns given) or `GET /--tests`.
+5. Fetches importmap from `GET /--importmap`.
+6. Creates a `TestWorker` instance and executes all test files.
+7. Reports final results and exits with code 0 (success) or 1 (failures).
+8. Kills auto-started server on exit.
+
+### TestWorker (`src/TestWorker.js`)
+
+Extends `EventServer` from `tape-six`. Manages Playwright browser and iframe execution:
+
+- **`constructor(reporter, numberOfTasks, options)`** — launches headless Chromium, creates a page, exposes `__tape6_reporter` and `__tape6_error` as page globals.
+- **`makeTask(fileName)`** — creates an iframe for the test file. Returns a task ID.
+- **`destroyTask(id)`** — removes the iframe from the page.
+- **`cleanup()`** — closes the browser.
+
+### Iframe lifecycle
+
+For `.html` files:
+1. Set iframe `src` to the file URL with query parameters (`id`, `test-file-name`, `flags`).
+2. The HTML file loads `tape-six` which auto-detects `window.parent.__tape6_reporter`.
+
+For `.js`/`.mjs` files:
+1. Create iframe, write an HTML document with `importmap` and a dynamic `<script type="module">`.
+2. The script sets `window.__tape6_id`, `window.__tape6_testFileName`, `window.__tape6_flags`.
+3. Dynamically appends a `<script>` element pointing to the test file URL on the server.
+4. `tape-six` initializes, detects `window.parent.__tape6_reporter`, and uses `ProxyReporter`.
+
+### Event flow
+
+```
+iframe tape-six → ProxyReporter → window.parent.__tape6_reporter(id, event)
+  → page.exposeFunction → Node.js TestWorker.report(id, event) → reporter
+```
+
+### Unsupported files
+
+`.cjs`, `.ts`, `.cts`, `.mts` files are skipped with a warning.
+
+## Dependencies
+
+- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `initReporter`, `showInfo`), `test.js`, `utils/timer.js`.
+- **`playwright`** — headless browser automation. Bundled Chromium installed via `postinstall`.
+
+## Writing tests
+
+Tests are standard `tape-six` tests. See the [tape-six documentation](https://github.com/uhop/tape-six/wiki) for the full API.
+
+```js
+import test from 'tape-six'
+
+test('browser APIs', t => {
+  t.ok(typeof window === 'object', 'window exists')
+  t.ok(typeof document === 'object', 'document exists')
+  t.equal(typeof fetch, 'function', 'fetch available')
+})
+
+test('DOM manipulation', t => {
+  const el = document.createElement('div')
+  el.classList.add('test')
+  t.ok(el.classList.contains('test'), 'classList works')
+})
+```
+
+`.html` test files can include their own importmap and inline scripts:
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <script type="importmap">
+      { "imports": { "tape-six": "/node_modules/tape-six/index.js" } }
+    </script>
+    <script type="module">
+      import test from 'tape-six'
+      test('html test', t => { t.ok(true, 'works') })
+    </script>
+  </head>
+  <body></body>
+</html>
+```
+
+## Links
+
+- Docs: https://github.com/uhop/tape-six-playwright/wiki
+- npm: https://www.npmjs.com/package/tape-six-playwright
+- tape-six: https://github.com/uhop/tape-six
+- tape-six LLM reference: https://github.com/uhop/tape-six/blob/master/llms.txt

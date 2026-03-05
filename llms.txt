@@ -1,0 +1,122 @@
+# tape-six-playwright
+
+> Helper for [tape-six](https://github.com/uhop/tape-six) that runs test files in a headless browser via Playwright. Each test file runs in its own iframe inside headless Chromium. Works with Node, Deno, and Bun.
+
+## Install
+
+```bash
+npm i -D tape-six-playwright
+```
+
+## Quick start
+
+1. Write tests using `tape-six` with browser APIs:
+
+```js
+import test from 'tape-six'
+
+test('DOM test', t => {
+  const el = document.createElement('div')
+  el.textContent = 'hello'
+  t.equal(el.textContent, 'hello', 'element works')
+})
+```
+
+2. Configure tests in `package.json`:
+
+```json
+{
+  "scripts": {
+    "test": "tape6-playwright --start-server --flags FO"
+  },
+  "tape6": {
+    "browser": ["/tests/test-*.html"],
+    "tests": ["/tests/test-*.*js"],
+    "importmap": {
+      "imports": {
+        "tape-six": "/node_modules/tape-six/index.js",
+        "tape-six/": "/node_modules/tape-six/src/"
+      }
+    }
+  }
+}
+```
+
+3. Run: `npm test`
+
+## Why use tape-six-playwright?
+
+- **Real browser environment** — tests run in headless Chromium with full DOM and browser API access.
+- **Iframe isolation** — each test file runs in its own iframe.
+- **Cross-runtime** — works with Node, Deno, and Bun using the same test files.
+- **Drop-in companion** — uses the same configuration and test format as `tape6` and `tape6-proc`.
+
+## CLI: tape6-playwright
+
+```bash
+tape6-playwright [--flags FLAGS] [--par N] [--start-server] [--server-url URL] [--info] [tests...]
+```
+
+### Options
+
+- `--flags FLAGS` (`-f`) — output control flags (same as tape6: F=failures only, T=time, B=banner, D=data, O=fail once, N=assert number, M=monochrome, C=don't capture console, H=hide streams). Can be specified multiple times.
+- `--par N` (`-p`) — number of parallel iframes (default: all CPU cores).
+- `--start-server` — auto-start `tape6-server` if not already running.
+- `--server-url URL` (`-u`) — server URL (overrides `TAPE6_SERVER_URL`).
+- `--self` — prints the path to `tape6-playwright.js` (for cross-runtime scripts).
+- `--info` — prints runtime, reporter, flags, parallelism, and resolved test files, then exits.
+- No arguments: runs tests from configuration.
+- Options accept `--flags FO` or `--flags=FO`. The `=` form does not support quoting.
+
+### Cross-runtime usage
+
+```json
+{
+  "scripts": {
+    "test": "tape6-playwright --start-server --flags FO",
+    "test:bun": "bun run `tape6-playwright --self` --start-server --flags FO",
+    "test:deno": "deno run -A `tape6-playwright --self` --start-server --flags FO"
+  }
+}
+```
+
+## Server
+
+Requires `tape6-server` (from `tape-six`) to serve test files. Use `--start-server` to auto-start it, or run `npx tape6-server` manually.
+
+Server URL: `TAPE6_SERVER_URL` env var, or `HOST`/`PORT`, default `http://localhost:3000`.
+
+## Configuration
+
+Same as `tape-six`. Reads from `tape6.json` or the `"tape6"` section of `package.json`:
+
+```json
+{
+  "tape6": {
+    "browser": ["/tests/test-*.html"],
+    "tests": ["/tests/test-*.*js"],
+    "importmap": {
+      "imports": {
+        "tape-six": "/node_modules/tape-six/index.js",
+        "tape-six/": "/node_modules/tape-six/src/"
+      }
+    }
+  }
+}
+```
+
+## Environment variables
+
+- `TAPE6_FLAGS` — flags string.
+- `TAPE6_PAR` — number of parallel iframes.
+- `TAPE6_TAP` — force TAP reporter.
+- `TAPE6_JSONL` — force JSONL reporter.
+- `TAPE6_MIN` — force minimal reporter.
+- `TAPE6_SERVER_URL` — full server URL override.
+
+## Links
+
+- Docs: https://github.com/uhop/tape-six-playwright/wiki
+- npm: https://www.npmjs.com/package/tape-six-playwright
+- tape-six: https://github.com/uhop/tape-six
+- Full LLM reference: https://github.com/uhop/tape-six-playwright/blob/master/llms-full.txt
