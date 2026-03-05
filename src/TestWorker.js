@@ -96,13 +96,16 @@ export default class TestWorker extends EventServer {
         const search = new URLSearchParams({id, 'test-file-name': fileName});
         if (flags) search.set('flags', flags);
         const url = '/' + fileName + '?' + search.toString();
-        await this.page.evaluate(({url, frameId}) => {
-          const iframe = document.createElement('iframe');
-          iframe.id = 'test-iframe-' + frameId;
-          iframe.src = url;
-          iframe.onerror = error => window.__tape6_error(frameId, error);
-          document.body.append(iframe);
-        }, {url, frameId: id});
+        await this.page.evaluate(
+          ({url, frameId}) => {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'test-iframe-' + frameId;
+            iframe.src = url;
+            iframe.onerror = error => window.__tape6_error(frameId, error);
+            document.body.append(iframe);
+          },
+          {url, frameId: id}
+        );
       } else {
         const html =
           '<!doctype html>' +
@@ -132,12 +135,15 @@ export default class TestWorker extends EventServer {
           'document.documentElement.appendChild(s);' +
           '<\/script>' +
           '</head><body></body></html>';
-        await this.page.evaluate(({frameId, srcdoc}) => {
-          const iframe = document.createElement('iframe');
-          iframe.id = 'test-iframe-' + frameId;
-          iframe.srcdoc = srcdoc;
-          document.body.append(iframe);
-        }, {frameId: id, srcdoc: html});
+        await this.page.evaluate(
+          ({frameId, srcdoc}) => {
+            const iframe = document.createElement('iframe');
+            iframe.id = 'test-iframe-' + frameId;
+            iframe.srcdoc = srcdoc;
+            document.body.append(iframe);
+          },
+          {frameId: id, srcdoc: html}
+        );
       }
     } catch (error) {
       console.error('Failed to create iframe for:', fileName, error);

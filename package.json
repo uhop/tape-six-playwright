@@ -10,6 +10,7 @@
   "scripts": {
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
+    "browser": "playwright install chromium",
     "postinstall": "playwright install chromium",
     "test": "node ./bin/tape6-playwright.js --start-server --flags FO",
     "test:bun": "bun run ./bin/tape6-playwright.js --start-server --flags FO",
