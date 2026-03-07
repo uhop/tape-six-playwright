@@ -13,6 +13,8 @@ jobs:
   tests:
     name: Node.js ${{inputs.node-version}} (special test)
     runs-on: windows-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
