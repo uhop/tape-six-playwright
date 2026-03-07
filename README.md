@@ -106,6 +106,7 @@ LLM-friendly documentation is available:
 
 The most recent releases:
 
+- 1.0.1 _Updated dependencies, added `npm run browser` script, improved workflows._
 - 1.0.0 _The first official release._
 
 See the full [release notes](https://github.com/uhop/tape-six-playwright/wiki/Release-notes) for details.
