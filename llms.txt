@@ -54,7 +54,7 @@ test('DOM test', t => {
 ## CLI: tape6-playwright
 
 ```bash
-tape6-playwright [--flags FLAGS] [--par N] [--start-server] [--server-url URL] [--info] [tests...]
+tape6-playwright [options] [patterns...]
 ```
 
 ### Options
@@ -65,6 +65,8 @@ tape6-playwright [--flags FLAGS] [--par N] [--start-server] [--server-url URL] [
 - `--server-url URL` (`-u`) — server URL (overrides `TAPE6_SERVER_URL`).
 - `--self` — prints the path to `tape6-playwright.js` (for cross-runtime scripts).
 - `--info` — prints runtime, reporter, flags, parallelism, and resolved test files, then exits.
+- `--help` (`-h`) — shows help message and exits.
+- `--version` (`-v`) — shows version and exits.
 - No arguments: runs tests from configuration.
 - Options accept `--flags FO` or `--flags=FO`. The `=` form does not support quoting.
 
