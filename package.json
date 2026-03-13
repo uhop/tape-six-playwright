@@ -60,7 +60,7 @@
   ],
   "dependencies": {
     "playwright": "^1.58.2",
-    "tape-six": "^1.7.10"
+    "tape-six": "^1.7.12"
   },
   "tape6": {
     "browser": [
