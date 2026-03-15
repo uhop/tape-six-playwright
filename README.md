@@ -106,6 +106,7 @@ LLM-friendly documentation is available:
 
 The most recent releases:
 
+- 1.0.2 _Added `--help`/`-h` and `--version`/`-v` CLI options._
 - 1.0.1 _Updated dependencies, added `npm run browser` script, improved workflows._
 - 1.0.0 _The first official release._
 

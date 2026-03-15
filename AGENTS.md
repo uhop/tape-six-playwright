@@ -48,7 +48,7 @@ tape-six-playwright/
 
 ## Architecture
 
-- `bin/tape6-playwright.js` is the CLI entry point. With `--self` it prints its own path (for cross-runtime usage). Otherwise it delegates to `bin/tape6-playwright-node.js`.
+- `bin/tape6-playwright.js` is the CLI entry point. Handles `--help`/`-h`, `--version`/`-v`, and `--self` directly. Otherwise delegates to `bin/tape6-playwright-node.js`.
 - `bin/tape6-playwright-node.js` uses `getOptions()` and `initReporter()` from `tape-six` for CLI parsing and reporter setup. Ensures `tape6-server` is running (with optional `--start-server`), fetches test files from the server (via `/--patterns` or `/--tests`) and importmap, then runs tests via `TestWorker`.
 - `TestWorker` (in `src/TestWorker.js`) extends `EventServer` from `tape-six`. It launches headless Chromium via Playwright, exposes `__tape6_reporter` and `__tape6_error` globals, and runs each test file in a separate iframe.
 - For `.html` files: loaded as iframe `src` with query parameters (`id`, `test-file-name`, `flags`).
