@@ -158,6 +158,8 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 
 `bin/tape6-playwright.js` is the CLI entry point:
 
+- With `--help`/`-h`: prints usage and all options, then exits.
+- With `--version`/`-v`: prints version, then exits.
 - With `--self`: prints its own absolute path and exits.
 - Otherwise: delegates to `bin/tape6-playwright-node.js`.
 
@@ -206,7 +208,7 @@ iframe tape-six → ProxyReporter → window.parent.__tape6_reporter(id, event)
 
 ## Dependencies
 
-- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `initReporter`, `showInfo`), `test.js`, `utils/timer.js`.
+- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `initReporter`, `showInfo`, `printFlagOptions`), `test.js`, `utils/timer.js`.
 - **`playwright`** — headless browser automation. Bundled Chromium installed via `postinstall`.
 
 ## Writing tests

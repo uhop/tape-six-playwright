@@ -58,7 +58,7 @@ tape-six-playwright/
 
 ## Dependencies
 
-- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `initReporter`, `showInfo`), `test.js`, `utils/timer.js`.
+- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `initReporter`, `showInfo`, `printFlagOptions`), `test.js`, `utils/timer.js`.
 - **`playwright`** — headless browser automation. Bundled Chromium is installed via `postinstall`.
 
 ## Server
