@@ -6,14 +6,15 @@
 `tape-six-playwright` is a helper for [tape-six](https://www.npmjs.com/package/tape-six)
 to run tests in a headless browser via Playwright. Each test file runs in its own
 browser context — a separate page and iframe with isolated cookies and storage —
-inside headless Chromium.
+in a headless engine. Chromium runs by default; Firefox and WebKit are available via
+`--browser`.
 
 ## Why?
 
-The standard `tape6` runner uses worker threads. `tape6-playwright` launches headless
-Chromium and runs each test file in its own browser context, giving tests access to real
-DOM, browser APIs, and the full web platform. Tests can be `.js`/`.mjs` modules or
-`.html` files.
+The standard `tape6` runner uses worker threads. `tape6-playwright` launches a headless
+browser (Chromium, Firefox, or WebKit) and runs each test file in its own browser context,
+giving tests access to real DOM, browser APIs, and the full web platform. Tests can be
+`.js`/`.mjs` modules or `.html` files.
 
 ## Install
 
@@ -21,7 +22,9 @@ DOM, browser APIs, and the full web platform. Tests can be `.js`/`.mjs` modules 
 npm i -D tape-six-playwright
 ```
 
-Playwright's bundled Chromium is installed automatically via `postinstall`.
+Playwright's bundled Chromium is installed automatically via `postinstall`. Firefox and
+WebKit are optional — add them with `npm run browser:all` (or `npx playwright install
+firefox webkit`) when you want to run on those engines.
 
 ## Quick start
 
@@ -71,6 +74,37 @@ npm test
 - **Auto-start:** use `--start-server` to launch it automatically.
 - **Manual:** run `npx tape6-server` in a separate terminal, then run tests without `--start-server`.
 - **Custom URL:** use `--server-url URL` (`-u`), or set `TAPE6_SERVER_URL` or `HOST`/`PORT` environment variables.
+
+## Choosing a browser engine
+
+Tests run on Chromium by default. Select another engine with `--browser` (`-b`) or the
+`TAPE6_BROWSER` environment variable — `chromium`, `firefox`, or `webkit` (CLI overrides
+env, which overrides the default):
+
+```bash
+tape6-playwright --start-server --browser firefox --flags FO
+TAPE6_BROWSER=webkit tape6-playwright --start-server --flags FO
+```
+
+Only Chromium is installed by `postinstall`. Install the others on demand (a run that
+requests a missing or unrunnable engine fails with an install hint):
+
+```bash
+npx playwright install firefox webkit   # or: npm run browser:all
+# on Linux you may also need: npx playwright install-deps
+```
+
+Run several engines with one script each:
+
+```json
+{
+  "scripts": {
+    "test": "tape6-playwright --start-server --flags FO",
+    "test:firefox": "tape6-playwright --start-server --browser firefox --flags FO",
+    "test:webkit": "tape6-playwright --start-server --browser webkit --flags FO"
+  }
+}
+```
 
 ## Cross-runtime usage
 

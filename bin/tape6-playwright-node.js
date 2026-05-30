@@ -11,7 +11,7 @@ import {getOptions, initReporter, showInfo, printFlagOptions} from 'tape-six/uti
 import {getReporter, setReporter} from 'tape-six/test.js';
 import {selectTimer} from 'tape-six/utils/timer.js';
 
-import TestWorker from '../src/TestWorker.js';
+import TestWorker, {supportedBrowsers} from '../src/TestWorker.js';
 
 const rootFolder = process.cwd();
 
@@ -45,6 +45,10 @@ const showHelp = () => {
   const options = [
     ['--flags, -f <flags>', 'Set reporter flags (env: TAPE6_FLAGS)'],
     ['--par, -p <n>', 'Set parallelism level (env: TAPE6_PAR)'],
+    [
+      '--browser, -b <name>',
+      'Browser engine: chromium|firefox|webkit (env: TAPE6_BROWSER, default: chromium)'
+    ],
     [
       '--server-url, -u <url>',
       'Server URL (env: TAPE6_SERVER_URL, default: http://localhost:3000)'
@@ -144,10 +148,25 @@ const main = async () => {
     '--start-server': {isValueRequired: false},
     '--info': {isValueRequired: false},
     '--server-url': {aliases: ['-u'], initialValue: getServerUrl(), isValueRequired: true},
+    '--browser': {
+      aliases: ['-b'],
+      initialValue: process.env.TAPE6_BROWSER || supportedBrowsers[0],
+      isValueRequired: true
+    },
     '--help': {aliases: ['-h'], fn: showHelp, isValueRequired: false},
     '--version': {aliases: ['-v'], fn: showVersion, isValueRequired: false}
   });
   options.flags.serverUrl = options.optionFlags['--server-url'];
+  options.flags.browser = options.optionFlags['--browser'];
+
+  if (!supportedBrowsers.includes(options.flags.browser)) {
+    console.error(
+      `Error: unsupported browser "${options.flags.browser}". Choose one of: ${supportedBrowsers.join(', ')}.`
+    );
+    await new Promise(r => process.stderr.write('', r));
+    process.exitCode = 1;
+    return;
+  }
 
   await Promise.all([initReporter(getReporter, setReporter, options.flags), selectTimer()]);
 
@@ -163,7 +182,9 @@ const main = async () => {
   const serverUrl = options.optionFlags['--server-url'].replace(/\/+$/, '');
   const serverChild = await ensureServer(serverUrl, startServer);
 
-  console.log(`Connected to ${serverUrl} (${serverChild ? 'self-launched' : 'external'})`);
+  console.log(
+    `Connected to ${serverUrl} (${serverChild ? 'self-launched' : 'external'}); browser: ${options.flags.browser}`
+  );
 
   const shutdown = code => {
     serverChild?.kill();

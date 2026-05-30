@@ -1,6 +1,6 @@
 # AGENTS.md — tape-six-playwright
 
-> `tape-six-playwright` is a helper for [tape-six](https://github.com/uhop/tape-six) that runs test files in a headless browser via Playwright. Each test file runs in its own iframe inside headless Chromium. The npm package name is `tape-six-playwright` and the CLI command is `tape6-playwright`.
+> `tape-six-playwright` is a helper for [tape-six](https://github.com/uhop/tape-six) that runs test files in a headless browser via Playwright. Each test file runs in its own browser context (page + iframe) in a headless engine — Chromium, Firefox, or WebKit, selectable via `--browser`. The npm package name is `tape-six-playwright` and the CLI command is `tape6-playwright`.
 
 ## Setup
 
@@ -12,14 +12,17 @@ cd tape-six-playwright
 npm install
 ```
 
-There is no build step. `npm install` runs `postinstall` which installs Playwright's bundled Chromium.
+There is no build step. `npm install` runs `postinstall` which installs Playwright's bundled Chromium. Firefox and WebKit are not installed by default — run `npm run browser:all` (or `npx playwright install firefox webkit`; on Linux add `npx playwright install-deps`) to add them.
 
 ## Commands
 
 - **Install:** `npm install`
 - **Test (Node):** `npm test` (runs `tape6-playwright --start-server --flags FO`)
+- **Test (Firefox):** `npm run test:firefox` — runs the suite on Firefox (`--browser firefox`)
+- **Test (WebKit):** `npm run test:webkit` — runs the suite on WebKit (`--browser webkit`)
 - **Test (Bun):** `npm run test:bun`
 - **Test (Deno):** `npm run test:deno`
+- **Install all engines:** `npm run browser:all` (Chromium + Firefox + WebKit)
 - **Lint:** `npm run lint` (Prettier check)
 - **Lint fix:** `npm run lint:fix` (Prettier write)
 
@@ -32,7 +35,7 @@ tape-six-playwright/
 │   ├── tape6-playwright.js     # CLI entry point (--self flag or delegates to -node.js)
 │   └── tape6-playwright-node.js # Main CLI: config, reporter, server, test execution
 ├── src/
-│   └── TestWorker.js     # TestWorker class: launches Playwright, runs tests in iframes
+│   └── TestWorker.js     # TestWorker class: launches the selected engine, runs each test in its own context
 ├── tests/                # Test files (test-*.js, test-*.mjs, test-*.html)
 ├── wiki/                 # GitHub wiki documentation (submodule)
 ├── README.md
@@ -50,7 +53,8 @@ tape-six-playwright/
 
 - `bin/tape6-playwright.js` is the CLI entry point. Handles `--help`/`-h`, `--version`/`-v`, and `--self` directly. Otherwise delegates to `bin/tape6-playwright-node.js`.
 - `bin/tape6-playwright-node.js` uses `getOptions()` and `initReporter()` from `tape-six` for CLI parsing and reporter setup. Ensures `tape6-server` is running (with optional `--start-server`), fetches test files from the server (via `/--patterns` or `/--tests`) and importmap, then runs tests via `TestWorker`.
-- `TestWorker` (in `src/TestWorker.js`) extends `EventServer` from `tape-six`. It launches one headless Chromium browser via Playwright; each test file runs in its own `BrowserContext` → `Page` (full origin/storage isolation), with `__tape6_reporter` and `__tape6_error` exposed as page functions and the test itself in an iframe inside that page.
+- `TestWorker` (in `src/TestWorker.js`) extends `EventServer` from `tape-six`. It launches one headless browser of the selected engine via Playwright; each test file runs in its own `BrowserContext` → `Page` (full origin/storage isolation), with `__tape6_reporter` and `__tape6_error` exposed as page functions and the test itself in an iframe inside that page.
+- **Browser selection:** `--browser <chromium|firefox|webkit>` / `-b` (env `TAPE6_BROWSER`, default `chromium`; precedence CLI > env > default) picks the engine. `TestWorker.#init()` dynamic-picks it via `playwright[name].launch(...)`; `--no-sandbox` is applied to Chromium only (Firefox/WebKit launch without it). `supportedBrowsers` (exported from `src/TestWorker.js`) is the single source of truth the CLI validates against. Only Chromium is fetched by `postinstall`; a missing/unrunnable engine fails the run with an `npx playwright install` / `install-deps` hint (a launch failure reports a failure, so the run exits non-zero rather than a false pass).
 - For `.html` files: loaded as iframe `src` with query parameters (`id`, `test-file-name`, `flags`).
 - For `.js`/`.mjs` files: an HTML document is written into the iframe with an `importmap` and a dynamic module script.
 - Unsupported extensions (`.cjs`, `.ts`, `.cts`, `.mts`) are skipped with a warning.
@@ -60,7 +64,7 @@ tape-six-playwright/
 ## Dependencies
 
 - **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `initReporter`, `showInfo`, `printFlagOptions`), `test.js`, `utils/timer.js`.
-- **`playwright`** — headless browser automation. Bundled Chromium is installed via `postinstall`.
+- **`playwright`** — headless browser automation (Chromium, Firefox, WebKit). Bundled Chromium is installed via `postinstall`; Firefox and WebKit are fetched on demand (`npm run browser:all`).
 
 ## Server
 

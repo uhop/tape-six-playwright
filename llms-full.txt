@@ -1,9 +1,10 @@
 # tape-six-playwright
 
-> A helper for [tape-six](https://github.com/uhop/tape-six) that runs test files in a headless browser via Playwright. Each test file runs in its own iframe inside headless Chromium. The npm package name is `tape-six-playwright` and the CLI command is `tape6-playwright`.
+> A helper for [tape-six](https://github.com/uhop/tape-six) that runs test files in a headless browser via Playwright. Each test file runs in its own browser context (page + iframe) in Chromium, Firefox, or WebKit (default Chromium, selectable via `--browser`). The npm package name is `tape-six-playwright` and the CLI command is `tape6-playwright`.
 
-- Real browser environment: tests run in headless Chromium with full DOM and browser API access
+- Real browser environment: tests run in a headless engine (Chromium, Firefox, or WebKit) with full DOM and browser API access
 - Per-context isolation: each test file runs in its own browser context (isolated cookies/storage), in an iframe inside that context's page
+- Multiple engines: `--browser` / `TAPE6_BROWSER` selects `chromium` (default), `firefox`, or `webkit`
 - Cross-runtime: Node, Deno, and Bun with the same test files
 - Drop-in companion for `tape6` (worker-thread runner) and `tape6-proc` (subprocess runner)
 - Same configuration format as `tape-six`
@@ -16,7 +17,7 @@
 npm i -D tape-six-playwright
 ```
 
-Playwright's bundled Chromium is installed automatically via `postinstall`.
+Playwright's bundled Chromium is installed automatically via `postinstall`. Firefox and WebKit are optional — add them with `npm run browser:all` (or `npx playwright install firefox webkit`; on Linux add `npx playwright install-deps`).
 
 ## Quick start
 
@@ -41,7 +42,7 @@ tape6-playwright --start-server --flags FO
 
 ## CLI: tape6-playwright
 
-Runs test files in parallel, each in its own iframe inside headless Chromium.
+Runs test files in parallel, each in its own browser context inside a headless engine (Chromium by default; Firefox or WebKit via `--browser`).
 
 ```bash
 tape6-playwright [options] [patterns...]
@@ -51,6 +52,7 @@ tape6-playwright [options] [patterns...]
 
 - `--flags FLAGS` (`-f`) — output control flags (see Supported flags below).
 - `--par N` (`-p`) — number of parallel iframes. Default: all CPU cores (via `os.availableParallelism()` or `navigator.hardwareConcurrency`).
+- `--browser NAME` (`-b`) — browser engine: `chromium` (default), `firefox`, or `webkit`. Overrides `TAPE6_BROWSER`. Only Chromium is installed by `postinstall`; a missing/unrunnable engine fails the run with an `npx playwright install` / `install-deps` hint.
 - `--start-server` — auto-start `tape6-server` if not already running.
 - `--server-url URL` (`-u`) — server URL. Overrides `TAPE6_SERVER_URL` and `HOST`/`PORT`.
 - `--self` — prints the absolute path to `tape6-playwright.js` and exits. Used in cross-runtime scripts.
@@ -71,6 +73,10 @@ tape6-playwright --start-server tests/test-dom.js
 
 # Limit parallelism
 tape6-playwright --start-server --par 2 --flags FO
+
+# Run on Firefox (or WebKit)
+tape6-playwright --start-server --browser firefox --flags FO
+TAPE6_BROWSER=webkit tape6-playwright --start-server --flags FO
 
 # Use with already-running server
 tape6-playwright --flags FO
@@ -149,6 +155,7 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 - `TAPE6_JSONL` — force JSONL reporter (any non-empty value).
 - `TAPE6_MIN` — force minimal reporter (any non-empty value).
 - `TAPE6_SERVER_URL` — full server URL override (e.g. `http://localhost:4000`). Overridden by `--server-url`.
+- `TAPE6_BROWSER` — browser engine: `chromium` (default), `firefox`, or `webkit`. Overridden by `--browser` (precedence: CLI > env > default).
 - `HOST` — server hostname (default: `localhost`).
 - `PORT` — server port (default: `3000`).
 - `TAPE6_GRACE_TIMEOUT` — control channel: ms a worker gets to drain (run cleanup hooks) after a terminate, before its browser context is force-closed (default: `5000`).
@@ -167,7 +174,7 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 
 ### Main CLI (`bin/tape6-playwright-node.js`)
 
-1. Parses CLI arguments via `getOptions()` from `tape-six` (`--flags`, `--par`, `--start-server`, `--server-url`, `--info`, positional test patterns).
+1. Parses CLI arguments via `getOptions()` from `tape-six` (`--flags`, `--par`, `--browser`, `--start-server`, `--server-url`, `--info`, positional test patterns) and validates `--browser` against the supported engines.
 2. Initializes the reporter via `initReporter()` from `tape-six`.
 3. Ensures `tape6-server` is reachable (auto-starts if `--start-server`).
 4. Fetches test files from server via `GET /--patterns?q=...` (if patterns given) or `GET /--tests`.
@@ -180,12 +187,20 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 
 Extends `EventServer` from `tape-six`. Manages the Playwright browser and per-task contexts:
 
-- **`constructor(reporter, numberOfTasks, options)`** — launches one headless Chromium browser.
-- **`makeTask(fileName)`** — creates a fresh `BrowserContext` → `Page` for the test (full origin/storage isolation), exposes `__tape6_reporter` and `__tape6_error` on that page, navigates it to the server origin, and runs the test file in an iframe inside it. Returns a task ID.
+- **`constructor(reporter, numberOfTasks, options)`** — launches one headless browser of the selected engine (`options.browser`, default `chromium`) via `playwright[name].launch(...)`; `--no-sandbox` is applied to Chromium only.
+- **`makeTask(fileName)`** — creates a fresh `BrowserContext` → `Page` for the test (full origin/storage isolation), exposes `__tape6_reporter` and `__tape6_error` on that page, navigates it to the server origin, and runs the test file in an iframe inside it. Returns a task ID. If the browser failed to launch (e.g. the engine isn't installed), it reports a failure so the run exits non-zero rather than reporting a false pass.
 - **`destroyTask(id, reason)`** — the control plane. `done` closes the task's context; an abort reason (`failOnce` / `timeout`) drains the running test (posts `tape6-terminate` into the iframe), then force-kills it by closing the context after `graceTimeout`.
 - **`cleanup()`** — closes the browser.
 
 Task completion is driven by each page's `close` event, not by a reported event, so a force-killed page (which emits nothing) still completes `close(id)` exactly once.
+
+### Browser engines
+
+The engine is chosen with `--browser <chromium|firefox|webkit>` / `-b`, or `TAPE6_BROWSER` (precedence: CLI > env > default `chromium`). The CLI validates the value against `supportedBrowsers` (exported from `src/TestWorker.js` — the single source of truth) and exits with an error on an unknown engine. `TestWorker.#init()` then launches it via `playwright[name].launch(...)`, applying `--no-sandbox` to Chromium only (Firefox and WebKit launch without it). The per-context model, iframe injection, data plane, and control channel are identical across all three engines — only the launched browser differs.
+
+`postinstall` fetches only Chromium; Firefox and WebKit are installed on demand (`npm run browser:all`, or `npx playwright install firefox webkit`, plus `npx playwright install-deps` on Linux). Requesting an engine that isn't installed (or can't run for lack of system libraries) surfaces a clear hint and fails the run.
+
+The sibling package `tape-six-puppeteer` exposes the same `--browser` / `TAPE6_BROWSER` contract, minus `webkit` (Puppeteer drives only Chromium-family and Firefox).
 
 ### Iframe lifecycle
 

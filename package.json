@@ -1,7 +1,7 @@
 {
   "name": "tape-six-playwright",
   "version": "1.0.3",
-  "description": "Playwright-based browser test runner for tape-six. Runs each test file in its own iframe inside headless Chromium. Works with Node, Deno, and Bun.",
+  "description": "Playwright-based browser test runner for tape-six. Runs each test file in its own browser context (Chromium, Firefox, or WebKit). Works with Node, Deno, and Bun.",
   "type": "module",
   "bin": {
     "tape6-playwright": "bin/tape6-playwright.js",
@@ -11,8 +11,11 @@
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
     "browser": "playwright install chromium",
+    "browser:all": "playwright install chromium firefox webkit",
     "postinstall": "playwright install chromium",
     "test": "node ./bin/tape6-playwright.js --start-server --flags FO",
+    "test:firefox": "node ./bin/tape6-playwright.js --start-server --browser firefox --flags FO",
+    "test:webkit": "node ./bin/tape6-playwright.js --start-server --browser webkit --flags FO",
     "test:bun": "bun run ./bin/tape6-playwright.js --start-server --flags FO",
     "test:deno": "deno run -A ./bin/tape6-playwright.js --start-server --flags FO"
   },
@@ -29,6 +32,8 @@
     "playwright",
     "headless",
     "chromium",
+    "firefox",
+    "webkit",
     "iframe",
     "parallel",
     "cross-runtime",

@@ -23,6 +23,10 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     ['--flags, -f <flags>', 'Set reporter flags (env: TAPE6_FLAGS)'],
     ['--par, -p <n>', 'Set parallelism level (env: TAPE6_PAR)'],
     [
+      '--browser, -b <name>',
+      'Browser engine: chromium|firefox|webkit (env: TAPE6_BROWSER, default: chromium)'
+    ],
+    [
       '--server-url, -u <url>',
       'Server URL (env: TAPE6_SERVER_URL, default: http://localhost:3000)'
     ],

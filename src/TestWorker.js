@@ -1,9 +1,16 @@
-import {chromium} from 'playwright';
+import * as playwright from 'playwright';
 
 import {isStopTest} from 'tape-six/State.js';
 import EventServer from 'tape-six/utils/EventServer.js';
 
 const supportedExtRe = /\.(?:js|mjs|htm|html)$/i;
+
+// Browser engines this provider can drive, in CLI/env value form. Playwright
+// ships all three; `--browser` / `TAPE6_BROWSER` selects one (default the
+// first). The sibling `tape-six-puppeteer` exposes the same contract minus
+// `webkit` (Puppeteer has no WebKit). Keep this the single source of truth —
+// the CLI validates and builds its help text from it.
+export const supportedBrowsers = ['chromium', 'firefox', 'webkit'];
 
 export default class TestWorker extends EventServer {
   #ready;
@@ -16,7 +23,25 @@ export default class TestWorker extends EventServer {
     this.#ready = this.#init();
   }
   async #init() {
-    this.browser = await chromium.launch({headless: true, args: ['--no-sandbox']});
+    const name = this.options.browser || supportedBrowsers[0];
+    if (!supportedBrowsers.includes(name)) {
+      throw new Error(`Unsupported browser "${name}". Supported: ${supportedBrowsers.join(', ')}.`);
+    }
+    // `--no-sandbox` is a Chromium switch; Firefox and WebKit launch without it.
+    const launchOptions = {headless: true};
+    if (name === 'chromium') launchOptions.args = ['--no-sandbox'];
+    try {
+      this.browser = await playwright[name].launch(launchOptions);
+    } catch (error) {
+      // The postinstall only fetches Chromium, so the usual causes are a
+      // missing engine binary or (on Linux) missing system libraries. Point at
+      // both fixes; the wrapped error carries Playwright's own diagnostics.
+      throw new Error(
+        `Failed to launch ${name} — run \`npx playwright install ${name}\` if it is not ` +
+          `installed, or \`npx playwright install-deps ${name}\` if system libraries are missing.\n` +
+          (error && error.message ? error.message : String(error))
+      );
+    }
   }
   makeTask(fileName) {
     const id = String(++this.counter);
@@ -35,9 +60,23 @@ export default class TestWorker extends EventServer {
     this.#ready
       .then(() => this.#runTask(id, fileName))
       .catch(error => {
-        // Browser launch failed (or some pre-context error): no page exists, so
-        // complete the task directly — there is no 'close' event to drive it.
+        // Browser launch / setup failed (e.g. the requested engine isn't
+        // installed): no page exists, so there is no 'close' event to drive
+        // completion. Report the failure — otherwise a run where the browser
+        // never launches reports zero tests and exits 0 (a false pass) — then
+        // complete the task directly.
         console.error('Failed to run test:', fileName, error);
+        try {
+          this.report(id, {
+            name: error && error.message ? error.message : String(error),
+            test: 0,
+            marker: new Error(),
+            operator: 'error',
+            fail: true
+          });
+        } catch (reportError) {
+          if (!isStopTest(reportError)) throw reportError;
+        }
         this.close(id);
       });
     return id;
