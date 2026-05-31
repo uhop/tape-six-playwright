@@ -14,6 +14,14 @@ npm install
 
 There is no build step. `npm install` runs `postinstall` which installs Playwright's bundled Chromium. Firefox and WebKit are not installed by default — run `npm run browser:all` (or `npx playwright install firefox webkit`; on Linux add `npx playwright install-deps`) to add them.
 
+On a **too-new Linux distro** Playwright may reject the install (`Playwright does not support chromium on <distro>`) — and a failed install first deletes any existing browser builds. Force a supported platform string to get past it:
+
+```bash
+PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 npm ci          # or npm install / browser:all
+```
+
+Chromium and Firefox then download and run; WebKit downloads but won't run there (ICU soname mismatch) — verify it in a version-matched `mcr.microsoft.com/playwright:vX.Y.Z-noble` Docker image.
+
 ## Commands
 
 - **Install:** `npm install`
