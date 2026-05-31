@@ -142,7 +142,7 @@ LLM-friendly documentation is available:
 
 The most recent releases:
 
-- 1.1.0 _Added browser-engine selection (`--browser chromium|firefox|webkit`). Wired the worker control channel: cooperative `terminate` drain with a Node-side force-kill backstop. Updated dependencies._
+- 1.1.0 _Added browser-engine selection (`--browser chromium|firefox|webkit`). Implemented the terminate protocol. Updated dependencies._
 - 1.0.3 _Replaced `process.exit()` with `process.exitCode` to prevent truncated output._
 - 1.0.2 _Added `--help`/`-h` and `--version`/`-v` CLI options._
 - 1.0.1 _Updated dependencies, added `npm run browser` script, improved workflows._
