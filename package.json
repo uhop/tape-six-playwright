@@ -1,6 +1,6 @@
 {
   "name": "tape-six-playwright",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Playwright-based browser test runner for tape-six. Runs each test file in its own browser context (Chromium, Firefox, or WebKit). Works with Node, Deno, and Bun.",
   "type": "module",
   "bin": {
@@ -64,8 +64,8 @@
     "llms-full.txt"
   ],
   "dependencies": {
-    "playwright": "^1.58.2",
-    "tape-six": "^1.7.13"
+    "playwright": "^1.60.0",
+    "tape-six": "^1.10.0"
   },
   "tape6": {
     "browser": [
@@ -82,6 +82,6 @@
     }
   },
   "devDependencies": {
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.3"
   }
 }
