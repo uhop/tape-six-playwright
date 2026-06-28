@@ -14,13 +14,13 @@ npm install
 
 There is no build step. `npm install` runs `postinstall` which installs Playwright's bundled Chromium. Firefox and WebKit are not installed by default — run `npm run browser:all` (or `npx playwright install firefox webkit`; on Linux add `npx playwright install-deps`) to add them.
 
-On a **too-new Linux distro** Playwright may reject the install (`Playwright does not support chromium on <distro>`) — and a failed install first deletes any existing browser builds. Force a supported platform string to get past it:
+On Linux, install each engine's system libraries with `sudo npx playwright install-deps` (or `install-deps <engine>`) — WebKit needs `libevent`, `libavif`, and `libmanette`. Playwright 1.61+ recognizes current distros (including Ubuntu 26.04) and ships native per-distro WebKit builds, so all three engines download and run locally — WebKit no longer needs Docker here.
+
+If an older Playwright rejects the install on a too-new distro (`Playwright does not support chromium on <distro>` — and a failed install first deletes any existing browser builds), force a supported platform string to get past it:
 
 ```bash
 PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 npm ci          # or npm install / browser:all
 ```
-
-Chromium and Firefox then download and run; WebKit downloads but won't run there (ICU soname mismatch) — verify it in a version-matched `mcr.microsoft.com/playwright:vX.Y.Z-noble` Docker image.
 
 ## Commands
 
@@ -33,6 +33,7 @@ Chromium and Firefox then download and run; WebKit downloads but won't run there
 - **Install all engines:** `npm run browser:all` (Chromium + Firefox + WebKit)
 - **Lint:** `npm run lint` (Prettier check)
 - **Lint fix:** `npm run lint:fix` (Prettier write)
+- **JS type-check:** `npm run js-check` (`tsc --project tsconfig.check.json` — unused-var / undeclared-ref lint via `checkJs`; available, not part of `npm test`)
 
 ## Project structure
 

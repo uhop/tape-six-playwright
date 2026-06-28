@@ -10,6 +10,7 @@
   "scripts": {
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
+    "js-check": "tsc --project tsconfig.check.json",
     "browser": "playwright install chromium",
     "browser:all": "playwright install chromium firefox webkit",
     "postinstall": "playwright install chromium",
@@ -64,8 +65,8 @@
     "llms-full.txt"
   ],
   "dependencies": {
-    "playwright": "^1.60.0",
-    "tape-six": "^1.10.0"
+    "playwright": "^1.61.1",
+    "tape-six": "^1.11.0"
   },
   "tape6": {
     "browser": [
@@ -82,6 +83,8 @@
     }
   },
   "devDependencies": {
-    "prettier": "^3.8.3"
+    "@types/node": "^26.0.1",
+    "prettier": "^3.9.1",
+    "typescript": "^6.0.3"
   }
 }

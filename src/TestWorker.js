@@ -12,7 +12,7 @@ const supportedExtRe = /\.(?:js|mjs|htm|html)$/i;
 // the CLI validates and builds its help text from it.
 export const supportedBrowsers = ['chromium', 'firefox', 'webkit'];
 
-export default class TestWorker extends EventServer {
+export default class TestWorker extends /** @type {*} */ (EventServer) {
   #ready;
   constructor(reporter, numberOfTasks, options) {
     super(reporter, numberOfTasks, options);
@@ -187,7 +187,7 @@ export default class TestWorker extends EventServer {
           const iframe = document.createElement('iframe');
           iframe.id = 'test-iframe-' + frameId;
           iframe.src = url;
-          iframe.onerror = error => window.__tape6_error(frameId, error);
+          iframe.onerror = error => /** @type {*} */ (window).__tape6_error(frameId, error);
           document.body.append(iframe);
         },
         {url, frameId: id}
@@ -250,7 +250,7 @@ export default class TestWorker extends EventServer {
     task.page
       .evaluate(
         ({frameId, reason}) => {
-          const iframe = document.getElementById('test-iframe-' + frameId);
+          const iframe = /** @type {*} */ (document.getElementById('test-iframe-' + frameId));
           iframe?.contentWindow?.postMessage({type: 'tape6-terminate', reason}, '*');
         },
         {frameId: id, reason}
