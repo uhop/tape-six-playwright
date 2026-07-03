@@ -120,7 +120,7 @@ Run several engines with one script each:
 
 ## Docs
 
-See the [wiki](https://github.com/uhop/tape-six-playwright/wiki) for full documentation.
+Full documentation is in the **[wiki](https://github.com/uhop/tape-six-playwright/wiki)** &mdash; browse the [index](https://github.com/uhop/tape-six-playwright/wiki/Home), or [search it](https://uhop.github.io/wiki-search/app/?wiki=uhop/tape-six-playwright) by name.
 `tape-six` has its own [wiki](https://github.com/uhop/tape-six/wiki).
 
 `tape-six-playwright` uses the same test configuration and CLI conventions as `tape-six`.

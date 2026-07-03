@@ -128,4 +128,4 @@ Same as `tape-six`. Reads from `tape6.json` or the `"tape6"` section of `package
 - Docs: https://github.com/uhop/tape-six-playwright/wiki
 - npm: https://www.npmjs.com/package/tape-six-playwright
 - tape-six: https://github.com/uhop/tape-six
-- Full LLM reference: https://github.com/uhop/tape-six-playwright/blob/master/llms-full.txt
+- Full LLM reference: https://github.com/uhop/tape-six-playwright/blob/main/llms-full.txt

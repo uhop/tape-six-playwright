@@ -7,7 +7,7 @@
 This project uses a git submodule (wiki):
 
 ```bash
-git clone --recursive git@github.com:uhop/tape-six-playwright.git
+git clone --recursive https://github.com/uhop/tape-six-playwright.git
 cd tape-six-playwright
 npm install
 ```
@@ -56,6 +56,7 @@ tape-six-playwright/
 - **ES modules** throughout (`"type": "module"` in package.json).
 - **Prettier** for formatting (see `.prettierrc`).
 - Imports at the top of files, using `import` syntax.
+- **No narrating comments.** Comments are short _why_-markers only — a non-trivial decision or constraint, or an algorithm reference. Never restate _what_ the code does; JSDoc only when explicitly requested.
 - The package name is `tape-six-playwright` but the CLI command is `tape6-playwright`.
 
 ## Architecture

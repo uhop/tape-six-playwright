@@ -10,7 +10,7 @@ on:
   push:
     branches: ['*']
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   tests:
@@ -18,9 +18,10 @@ jobs:
     runs-on: ${{matrix.os}}
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
-        node-version: [25]
+        node-version: [22, 24, 26]
 
     steps:
       - uses: actions/checkout@v7
