@@ -27,6 +27,10 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
       'Browser engine: chromium|firefox|webkit (env: TAPE6_BROWSER, default: chromium)'
     ],
     [
+      '--browsers <list>',
+      'Run several engines: comma-separated or "all" (env: TAPE6_BROWSERS; overrides --browser)'
+    ],
+    [
       '--server-url, -u <url>',
       'Server URL (env: TAPE6_SERVER_URL, default: http://localhost:3000)'
     ],

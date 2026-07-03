@@ -53,6 +53,7 @@ tape6-playwright [options] [patterns...]
 - `--flags FLAGS` (`-f`) — output control flags (see Supported flags below).
 - `--par N` (`-p`) — number of parallel iframes. Default: all CPU cores (via `os.availableParallelism()` or `navigator.hardwareConcurrency`).
 - `--browser NAME` (`-b`) — browser engine: `chromium` (default), `firefox`, or `webkit`. Overrides `TAPE6_BROWSER`. Only Chromium is installed by `postinstall`; a missing/unrunnable engine fails the run with an `npx playwright install` / `install-deps` hint.
+- `--browsers LIST` — multi-engine fan-out: comma-separated engine names or `all` (env: `TAPE6_BROWSERS`; overrides `--browser`). Runs the full suite once per engine sequentially — fresh reporter and per-engine summary each — then prints a final `Browsers: <name> PASS|FAIL, ...` line; exits non-zero if any engine fails. Duplicates are deduped; a failed-to-launch engine records FAIL and the remaining engines still run.
 - `--start-server` — auto-start `tape6-server` if not already running.
 - `--h2` — HTTP/2 mode: implies an `https:` server URL and is passed through to a self-launched server. Overrides `TAPE6_PROTOCOL` and the `tape6.server.protocol` config (flag > env > config, mirroring the server's own resolution).
 - `--server-url URL` (`-u`) — server URL. Overrides `TAPE6_SERVER_URL` and `HOST`/`PORT`. An explicit `https:` URL enables TLS handling even without `--h2`.
@@ -78,6 +79,10 @@ tape6-playwright --start-server --par 2 --flags FO
 # Run on Firefox (or WebKit)
 tape6-playwright --start-server --browser firefox --flags FO
 TAPE6_BROWSER=webkit tape6-playwright --start-server --flags FO
+
+# Fan out over several engines in one invocation
+tape6-playwright --start-server --browsers all --flags FO
+tape6-playwright --start-server --browsers chromium,webkit --flags FO
 
 # Use with already-running server
 tape6-playwright --flags FO
@@ -165,6 +170,7 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 - `TAPE6_PROTOCOL` — `h1` (default) or `h2`. Overridden by `--h2`; overrides `tape6.server.protocol` config.
 - `TAPE6_CERT` / `TAPE6_KEY` — TLS certificate/key paths for h2 (e.g. from mkcert). The server serves with them; the runner pins `TAPE6_CERT` as the CA for its control requests.
 - `TAPE6_BROWSER` — browser engine: `chromium` (default), `firefox`, or `webkit`. Overridden by `--browser` (precedence: CLI > env > default).
+- `TAPE6_BROWSERS` — multi-engine fan-out list (comma-separated or `all`). Overridden by `--browsers`; when set (either way), the fan-out overrides `--browser`/`TAPE6_BROWSER`.
 - `HOST` — server hostname (default: `localhost`).
 - `PORT` — server port (default: `3000`).
 - `TAPE6_GRACE_TIMEOUT` — control channel: ms a worker gets to drain (run cleanup hooks) after a terminate, before its browser context is force-closed (default: `5000`).
@@ -189,8 +195,8 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 4. Ensures `tape6-server` is reachable (auto-starts if `--start-server`, passing `--h2` for an `https:` URL; under Bun/Deno the h2 server child runs on `node`).
 5. Fetches test files from server via `GET /--patterns?q=...` (if patterns given) or `GET /--tests`.
 6. Fetches importmap from `GET /--importmap`. All control requests go through `src/controlFetch.js`, which tolerates the server's self-signed certificate on `https:` with request-scoped trust.
-7. Creates a `TestWorker` instance and executes all test files.
-8. Reports final results and exits with code 0 (success) or 1 (failures).
+7. For each selected engine (one by default; several with `--browsers`), creates a `TestWorker` instance and executes all test files — a fresh reporter per engine so counts and summaries are per-engine.
+8. Reports final results (plus a per-engine `Browsers: ... PASS|FAIL` line when fanning out) and exits with code 0 (success) or 1 (any failure on any engine).
 9. Kills auto-started server on exit.
 
 ### TestWorker (`src/TestWorker.js`)
@@ -209,6 +215,8 @@ Task completion is driven by each page's `close` event, not by a reported event,
 The engine is chosen with `--browser <chromium|firefox|webkit>` / `-b`, or `TAPE6_BROWSER` (precedence: CLI > env > default `chromium`). The CLI validates the value against `supportedBrowsers` (exported from `src/TestWorker.js` — the single source of truth) and exits with an error on an unknown engine. `TestWorker.#init()` then launches it via `playwright[name].launch(...)`, applying `--no-sandbox` to Chromium only (Firefox and WebKit launch without it). The per-context model, iframe injection, data plane, and control channel are identical across all three engines — only the launched browser differs.
 
 `postinstall` fetches only Chromium; Firefox and WebKit are installed on demand (`npm run browser:all`, or `npx playwright install firefox webkit`, plus `npx playwright install-deps` on Linux). Requesting an engine that isn't installed (or can't run for lack of system libraries) surfaces a clear hint and fails the run.
+
+`--browsers` (plural) fans the suite out over several engines in one invocation — sequential runs, one `TestWorker` per engine, per-engine summaries, and a final per-engine PASS/FAIL verdict. This is the cheap way to catch cross-engine web-platform gaps (an engine missing a spec method — e.g. a Web Streams member — passes on the others and fails only there).
 
 The sibling package `tape-six-puppeteer` exposes the same `--browser` / `TAPE6_BROWSER` contract, minus `webkit` (Puppeteer drives only Chromium-family and Firefox).
 

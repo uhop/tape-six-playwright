@@ -59,6 +59,10 @@ const showHelp = () => {
       'Browser engine: chromium|firefox|webkit (env: TAPE6_BROWSER, default: chromium)'
     ],
     [
+      '--browsers <list>',
+      'Run several engines: comma-separated or "all" (env: TAPE6_BROWSERS; overrides --browser)'
+    ],
+    [
       '--server-url, -u <url>',
       'Server URL (env: TAPE6_SERVER_URL, default: http://localhost:3000)'
     ],
@@ -166,6 +170,7 @@ const main = async () => {
       initialValue: process.env.TAPE6_BROWSER || supportedBrowsers[0],
       isValueRequired: true
     },
+    '--browsers': {initialValue: process.env.TAPE6_BROWSERS || '', isValueRequired: true},
     '--help': {aliases: ['-h'], fn: showHelp, isValueRequired: false},
     '--version': {aliases: ['-v'], fn: showVersion, isValueRequired: false}
   });
@@ -183,9 +188,20 @@ const main = async () => {
   options.flags.serverUrl = serverUrl;
   options.flags.browser = options.optionFlags['--browser'];
 
-  if (!supportedBrowsers.includes(options.flags.browser)) {
+  // --browsers (fan-out) overrides --browser; the singular value is the
+  // one-element fallback, so a single validation covers both paths
+  let browsers = (options.optionFlags['--browsers'] || '')
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean);
+  if (browsers.includes('all')) browsers = [...supportedBrowsers];
+  browsers = [...new Set(browsers)];
+  if (!browsers.length) browsers = [options.flags.browser];
+
+  const badBrowser = browsers.find(name => !supportedBrowsers.includes(name));
+  if (badBrowser !== undefined) {
     console.error(
-      `Error: unsupported browser "${options.flags.browser}". Choose one of: ${supportedBrowsers.join(', ')}.`
+      `Error: unsupported browser "${badBrowser}". Choose one of: ${supportedBrowsers.join(', ')}.`
     );
     await new Promise(r => process.stderr.write('', r));
     process.exitCode = 1;
@@ -206,7 +222,8 @@ const main = async () => {
   const serverChild = await ensureServer(serverUrl, startServer, secure);
 
   console.log(
-    `Connected to ${serverUrl} (${serverChild ? 'self-launched' : 'external'}); browser: ${options.flags.browser}`
+    `Connected to ${serverUrl} (${serverChild ? 'self-launched' : 'external'}); ` +
+      (browsers.length > 1 ? `browsers: ${browsers.join(', ')}` : `browser: ${browsers[0]}`)
   );
 
   const shutdown = code => {
@@ -243,33 +260,55 @@ const main = async () => {
     if (response.ok) importmap = await response.json();
   } catch {}
 
-  const reporter = getReporter(),
-    worker = new TestWorker(reporter, options.parallel, {
-      ...options.flags,
-      serverUrl,
-      importmap
+  const failedBrowsers = [];
+  for (let i = 0; i < browsers.length; ++i) {
+    const browser = browsers[i];
+    if (i) {
+      // fresh reporter per engine (correct per-engine counts and summary):
+      // initReporter() only constructs into an empty slot
+      setReporter(null);
+      await initReporter(getReporter, setReporter, options.flags);
+    }
+    if (browsers.length > 1) console.log(`\nBrowser: ${browser}`);
+
+    const reporter = getReporter(),
+      worker = new TestWorker(reporter, options.parallel, {
+        ...options.flags,
+        browser,
+        serverUrl,
+        importmap
+      });
+
+    reporter.report({type: 'test', test: 0});
+
+    await new Promise(resolve => {
+      worker.done = () => resolve();
+      worker.execute(files);
     });
 
-  reporter.report({type: 'test', test: 0});
+    const hasFailed = reporter.state && reporter.state.failed > 0;
 
-  await new Promise(resolve => {
-    worker.done = () => resolve();
-    worker.execute(files);
-  });
+    reporter.report({
+      type: 'end',
+      test: 0,
+      fail: hasFailed
+    });
 
-  const hasFailed = reporter.state && reporter.state.failed > 0;
+    await worker.cleanup();
 
-  reporter.report({
-    type: 'end',
-    test: 0,
-    fail: hasFailed
-  });
+    if (hasFailed) failedBrowsers.push(browser);
+  }
 
-  await worker.cleanup();
+  if (browsers.length > 1) {
+    console.log(
+      '\nBrowsers: ' +
+        browsers.map(name => name + (failedBrowsers.includes(name) ? ' FAIL' : ' PASS')).join(', ')
+    );
+  }
 
   serverChild?.kill();
   await new Promise(r => process.stdout.write('', r));
-  process.exitCode = hasFailed ? 1 : 0;
+  process.exitCode = failedBrowsers.length ? 1 : 0;
 };
 
 main().catch(error => console.error('ERROR:', error));

@@ -129,6 +129,27 @@ Run several engines with one script each:
 }
 ```
 
+Or fan out over several engines in one invocation with `--browsers` (comma-separated, or
+`all`; env `TAPE6_BROWSERS`; overrides `--browser`). Each engine runs the full suite and
+prints its own summary, followed by a per-engine verdict; the run fails if any engine fails:
+
+```bash
+tape6-playwright --start-server --browsers all --flags FO
+tape6-playwright --start-server --browsers chromium,webkit --flags FO
+```
+
+```
+Browser: chromium
+  ♥️   tests: 10, asserts: 24, passed: 24, ...
+Browser: firefox
+  ♥️   tests: 10, asserts: 24, passed: 24, ...
+
+Browsers: chromium PASS, firefox PASS
+```
+
+This is the cheap way to catch cross-engine web-platform gaps (e.g. a Web Streams method
+one engine hasn't shipped) that single-engine testing can't see.
+
 ## Cross-runtime usage
 
 ```json
