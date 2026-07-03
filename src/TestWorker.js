@@ -90,7 +90,10 @@ export class TestWorker extends /** @type {*} */ (EventServer) {
   async #runTask(id, fileName) {
     let context, page;
     try {
-      context = await this.browser.newContext();
+      // h2 mode: the tape6 cert ladder ends in a self-signed cert
+      context = await this.browser.newContext(
+        /^https:/i.test(this.options.serverUrl || '') ? {ignoreHTTPSErrors: true} : {}
+      );
       page = await context.newPage();
     } catch (error) {
       console.error('Failed to open context for:', fileName, error);

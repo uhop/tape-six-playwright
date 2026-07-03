@@ -6,14 +6,23 @@ import process from 'node:process';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 
-import {getOptions, initReporter, showInfo, printFlagOptions} from 'tape-six/utils/config.js';
+import {
+  getOptions,
+  getConfig,
+  initReporter,
+  showInfo,
+  printFlagOptions,
+  runtime
+} from 'tape-six/utils/config.js';
 
 import {getReporter, setReporter} from 'tape-six/test.js';
 import {selectTimer} from 'tape-six/utils/timer.js';
 
 import {TestWorker, supportedBrowsers} from '../src/TestWorker.js';
+import {createControlFetch} from '../src/controlFetch.js';
 
 const rootFolder = process.cwd();
+const controlFetch = createControlFetch(rootFolder);
 
 const getVersion = () => {
   const pkgPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../package.json');
@@ -54,6 +63,7 @@ const showHelp = () => {
       'Server URL (env: TAPE6_SERVER_URL, default: http://localhost:3000)'
     ],
     ['--start-server', 'Auto-start tape6-server'],
+    ['--h2', 'HTTP/2 mode: https server URL, --h2 self-launch (env: TAPE6_PROTOCOL=h2)'],
     ['--info', 'Show configuration info and exit'],
     ['--self', 'Print the path to this script and exit'],
     ['--help, -h', 'Show this help message and exit'],
@@ -75,9 +85,9 @@ const getServerUrl = () => {
   return `http://${host}:${port}`;
 };
 
-const ensureServer = async (serverUrl, startServer) => {
+const ensureServer = async (serverUrl, startServer, h2) => {
   try {
-    const response = await fetch(serverUrl + '/--tests');
+    const response = await controlFetch(serverUrl + '/--tests');
     if (response.ok) return null;
   } catch {}
 
@@ -85,7 +95,7 @@ const ensureServer = async (serverUrl, startServer) => {
     console.error(
       `Error: tape6-server is not reachable at ${serverUrl}\n\n` +
         'Start it manually:\n' +
-        '  npx tape6-server\n\n' +
+        `  npx tape6-server${h2 ? ' --h2' : ''}\n\n` +
         'Or re-run with --start-server:\n' +
         '  tape6-playwright --start-server --flags FO\n'
     );
@@ -96,7 +106,10 @@ const ensureServer = async (serverUrl, startServer) => {
     serverParts = new URL(serverUrl),
     host = serverParts.hostname,
     port = serverParts.port || '3000',
-    child = spawn(process.execPath, [serverBin], {
+    // h2 server mode is Node-only (tape6-server refuses it elsewhere), so
+    // under Bun/Deno the h2 server child runs on PATH's node
+    execPath = h2 && runtime.name !== 'node' ? 'node' : process.execPath,
+    child = spawn(execPath, h2 ? [serverBin, '--h2'] : [serverBin], {
       cwd: rootFolder,
       stdio: ['ignore', 'ignore', 'pipe'],
       detached: false,
@@ -107,6 +120,11 @@ const ensureServer = async (serverUrl, startServer) => {
     exitCode = null,
     stderrData = '';
   child.stderr.on('data', chunk => (stderrData += chunk));
+  child.on('error', error => {
+    exited = true;
+    exitCode = null;
+    stderrData += (error && error.message) || String(error);
+  });
   child.on('exit', code => {
     exited = true;
     exitCode = code;
@@ -123,7 +141,7 @@ const ensureServer = async (serverUrl, startServer) => {
       process.exit(1);
     }
     try {
-      const response = await fetch(serverUrl + '/--tests');
+      const response = await controlFetch(serverUrl + '/--tests');
       if (response.ok) return child;
     } catch {}
   }
@@ -140,6 +158,7 @@ const main = async () => {
   const options = getOptions({
     '--self': {fn: showSelf, isValueRequired: false},
     '--start-server': {isValueRequired: false},
+    '--h2': {isValueRequired: false},
     '--info': {isValueRequired: false},
     '--server-url': {aliases: ['-u'], initialValue: getServerUrl(), isValueRequired: true},
     '--browser': {
@@ -150,7 +169,18 @@ const main = async () => {
     '--help': {aliases: ['-h'], fn: showHelp, isValueRequired: false},
     '--version': {aliases: ['-v'], fn: showVersion, isValueRequired: false}
   });
-  options.flags.serverUrl = options.optionFlags['--server-url'];
+
+  // mirrors tape6-server's flag > env > config resolution, so the URL scheme
+  // below agrees with the protocol a self-launched server will pick
+  let protocol = options.optionFlags['--h2'] === '' ? 'h2' : process.env.TAPE6_PROTOCOL || '';
+  if (!protocol) protocol = (await getConfig(rootFolder)).server?.protocol || 'h1';
+
+  let serverUrl = options.optionFlags['--server-url'].replace(/\/+$/, '');
+  if (protocol === 'h2') serverUrl = serverUrl.replace(/^http:/i, 'https:');
+  // an explicit https: --server-url means TLS regardless of --h2
+  const secure = /^https:/i.test(serverUrl);
+
+  options.flags.serverUrl = serverUrl;
   options.flags.browser = options.optionFlags['--browser'];
 
   if (!supportedBrowsers.includes(options.flags.browser)) {
@@ -173,8 +203,7 @@ const main = async () => {
 
   const startServer = options.optionFlags['--start-server'] === '';
 
-  const serverUrl = options.optionFlags['--server-url'].replace(/\/+$/, '');
-  const serverChild = await ensureServer(serverUrl, startServer);
+  const serverChild = await ensureServer(serverUrl, startServer, secure);
 
   console.log(
     `Connected to ${serverUrl} (${serverChild ? 'self-launched' : 'external'}); browser: ${options.flags.browser}`
@@ -194,11 +223,11 @@ const main = async () => {
   try {
     if (options.files.length) {
       const query = options.files.map(p => 'q=' + encodeURIComponent(p)).join('&');
-      const response = await fetch(serverUrl + '/--patterns?' + query);
+      const response = await controlFetch(serverUrl + '/--patterns?' + query);
       if (response.ok) files = await response.json();
     }
     if (!files.length) {
-      const response = await fetch(serverUrl + '/--tests');
+      const response = await controlFetch(serverUrl + '/--tests');
       if (response.ok) files = await response.json();
     }
   } catch {}
@@ -210,7 +239,7 @@ const main = async () => {
 
   let importmap = null;
   try {
-    const response = await fetch(serverUrl + '/--importmap');
+    const response = await controlFetch(serverUrl + '/--importmap');
     if (response.ok) importmap = await response.json();
   } catch {}
 

@@ -23,8 +23,8 @@ tape-six-playwright is a Playwright-based browser test runner for tape-six. Runs
 ## Architecture quick reference
 
 - `bin/tape6-playwright.js` is the CLI entry point. Handles `--help`/`-h`, `--version`/`-v`, and `--self` directly. Otherwise delegates to `bin/tape6-playwright-node.js`.
-- `bin/tape6-playwright-node.js` uses `getOptions()` and `initReporter()` from `tape-six` for CLI parsing and reporter setup. Ensures `tape6-server` is running (with optional `--start-server`), fetches test files from the server (via `/--patterns` or `/--tests`) and importmap, runs tests via `TestWorker`.
-- `src/TestWorker.js` extends `EventServer` from `tape-six`. Launches one headless browser of the selected engine; each test file runs in its own `BrowserContext` → `Page` (isolated cookies/storage) with `__tape6_reporter` and `__tape6_error` exposed as page functions and the test in an iframe inside that page.
+- `bin/tape6-playwright-node.js` uses `getOptions()` and `initReporter()` from `tape-six` for CLI parsing and reporter setup. Resolves the server protocol like `tape6-server` (`--h2` > `TAPE6_PROTOCOL` > `tape6.server.protocol` config > `h1`; h2 upgrades the server URL to `https:`). Ensures `tape6-server` is running (with optional `--start-server`, passing `--h2` through; h2 server mode is Node-only — under Bun/Deno the server child runs on `node`), fetches test files from the server (via `/--patterns` or `/--tests`) and importmap, runs tests via `TestWorker`. Control requests go through `src/controlFetch.js` — on `https:` request-scoped trust: `TAPE6_CERT` as pinned CA, else the server's cached self-signed cert, else relaxed verification; never process-wide.
+- `src/TestWorker.js` extends `EventServer` from `tape-six`. Launches one headless browser of the selected engine; each test file runs in its own `BrowserContext` → `Page` (isolated cookies/storage; `ignoreHTTPSErrors` when the server URL is `https:`) with `__tape6_reporter` and `__tape6_error` exposed as page functions and the test in an iframe inside that page.
 - Browser selection: `--browser <chromium|firefox|webkit>` / `-b` (env `TAPE6_BROWSER`, default `chromium`; CLI > env > default). `#init()` dynamic-picks via `playwright[name].launch(...)`; `--no-sandbox` is Chromium-only. `supportedBrowsers` (exported from `src/TestWorker.js`) is the source of truth the CLI validates against. A launch failure reports a failure so the run exits non-zero.
 - For `.html` files: loaded as iframe `src` with query parameters.
 - For `.js`/`.mjs` files: HTML document written into iframe with importmap and dynamic module script.
@@ -43,7 +43,7 @@ tape-six-playwright is a Playwright-based browser test runner for tape-six. Runs
 ## File layout
 
 - CLI: `bin/tape6-playwright.js`, `bin/tape6-playwright-node.js`
-- Core: `src/TestWorker.js`
+- Core: `src/TestWorker.js`, `src/controlFetch.js`
 - Tests: `tests/test-*.js`, `tests/test-*.mjs`, `tests/test-*.html`
 - Wiki docs: `wiki/` (git submodule)
 

@@ -75,6 +75,29 @@ npm test
 - **Manual:** run `npx tape6-server` in a separate terminal, then run tests without `--start-server`.
 - **Custom URL:** use `--server-url URL` (`-u`), or set `TAPE6_SERVER_URL` or `HOST`/`PORT` environment variables.
 
+### HTTP/2
+
+`tape6-server` (tape-six 1.12+) can serve HTTPS with HTTP/2 (HTTP/1.1 is still accepted via
+ALPN). Opt in with `--h2`, `TAPE6_PROTOCOL=h2`, or the sticky `tape6.server.protocol`
+config — the runner mirrors the server's flag > env > config resolution:
+
+```bash
+tape6-playwright --h2 --start-server --flags FO
+tape6-playwright -u https://localhost:3000 --flags FO   # external h2 server
+```
+
+`--h2` implies an `https:` server URL and is passed through to a self-launched server.
+Certificates are handled automatically: browser contexts run with `ignoreHTTPSErrors`, and
+the runner's own control requests trust `TAPE6_CERT` when set (e.g. an mkcert certificate),
+else the server's cached auto-generated certificate (`node_modules/.cache/tape6/`), else
+fall back to relaxed verification scoped to those requests only — never process-wide.
+
+HTTP/1.1 remains the default: h2 means TLS, and a self-signed certificate blocks
+service-worker registration even after an interstitial click-through. Opt in per suite for
+features that require h2 — e.g. `fetch()` request-body streaming (`duplex: 'half'`), which
+Chromium supports over h2/h3 only. The h2 server mode is Node-only; under Bun or Deno the
+runner starts the server child with `node` from `PATH`.
+
 ## Choosing a browser engine
 
 Tests run on Chromium by default. Select another engine with `--browser` (`-b`) or the
