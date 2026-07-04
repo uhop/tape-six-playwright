@@ -7,12 +7,14 @@
 ```
 tape-six-playwright/
 ├── package.json          # Package config; "tape6" section configures test discovery
+├── tsconfig.json         # strict ts-check config (.d.ts sidecars)
 ├── tsconfig.check.json   # js-check config (TypeScript as linter for .js sources)
 ├── bin/
 │   ├── tape6-playwright.js      # CLI entry point (--self flag or delegates to tape6-playwright-node.js)
 │   └── tape6-playwright-node.js # Main CLI: config, reporter, server handshake, test execution
 ├── src/
 │   ├── TestWorker.js     # TestWorker class: launches the browser, runs tests in per-context iframes
+│   ├── TestWorker.d.ts   # Type sidecar (@ts-self-types)
 │   └── controlFetch.js   # Control-plane client: cert-tolerant https GETs for the runner's server requests
 ├── tests/                # Automated tests (test-*.js, test-*.mjs, test-*.html);
 │                         # tests/manual/ holds hand-runnable control-channel fixtures
@@ -23,7 +25,7 @@ tape-six-playwright/
 
 - `bin/tape6-playwright.js` is the CLI entry point. It handles `--help`, `--version`, and `--self` (prints its own path for cross-runtime usage) directly; otherwise it delegates to `bin/tape6-playwright-node.js`.
 - `bin/tape6-playwright-node.js` delegates argument parsing and reporter setup to `tape-six/utils/config.js` (`getOptions`, `initReporter`, `showInfo`). It resolves the server protocol the way `tape6-server` does (`--h2` > `TAPE6_PROTOCOL` > `tape6.server.protocol` config > `h1`), upgrading the server URL to `https:` in h2 mode. It ensures `tape6-server` is reachable (auto-spawning it under `--start-server`, with `--h2` passed through; the h2 server mode is Node-only, so under Bun/Deno the server child runs on `node` from `PATH`), fetches the test-file list (`/--tests` or `/--patterns`) and the importmap (`/--importmap`) from the server, then runs tests via `TestWorker` — once per selected engine: `--browsers` (comma-separated or `all`; env `TAPE6_BROWSERS`; overrides `--browser`) fans the suite out sequentially, one `TestWorker` and a fresh reporter per engine (per-engine counts and summaries), ending in a per-engine PASS/FAIL line; a failed-to-launch engine records FAIL and the remaining engines still run. Control requests go through `src/controlFetch.js`: `https:` uses `node:https` with request-scoped trust — `TAPE6_CERT` pinned as CA when set, else the server's cached self-signed certificate (`node_modules/.cache/tape6/cert.pem`), else relaxed verification — never process-wide.
-- `TestWorker` (`src/TestWorker.js`) extends `EventServer` from `tape-six`. It launches one headless browser of the selected engine (`--browser chromium|firefox|webkit`, env `TAPE6_BROWSER`, default `chromium`; precedence CLI > env > default); each test file runs in its own `BrowserContext` → `Page` (created with `ignoreHTTPSErrors` when the server URL is `https:` — the h2 cert ladder ends in a self-signed certificate), with the test itself in an iframe inside that page. `supportedBrowsers` (exported from `src/TestWorker.js`) is the single source of truth the CLI validates against; `--no-sandbox` is applied to Chromium only. Only Chromium is fetched by `postinstall`; a missing or unrunnable engine fails the run with an `npx playwright install` / `install-deps` hint, so the run exits non-zero rather than reporting a false pass.
+- `TestWorker` (`src/TestWorker.js`) extends `EventServer` from `tape-six`. It launches one headless browser of the selected engine (`--browser chromium|firefox|webkit`, env `TAPE6_BROWSER`, default `chromium`; precedence CLI > env > default); each test file runs in its own `BrowserContext` → `Page` (created with `ignoreHTTPSErrors` when the server URL is `https:` — the h2 cert ladder ends in a self-signed certificate), with the test itself in an iframe inside that page. `supportedBrowsers` (exported from `src/TestWorker.js`) is the single source of truth the CLI validates against; `--no-sandbox` is applied to Chromium only. Only Chromium is fetched by `postinstall`; a missing or unrunnable engine fails the run with an `npx playwright install` / `install-deps` hint, so the run exits non-zero rather than reporting a false pass. `src/TestWorker.d.ts` is the hand-written type sidecar (advertised via `// @ts-self-types`), built on tape-six's shipped `EventServer` types; the worker's option keys land on `EventServerOptions` through a module augmentation, keeping implementation reads cast-free.
 
 ## Data plane
 

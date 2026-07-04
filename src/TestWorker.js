@@ -1,3 +1,5 @@
+// @ts-self-types="./TestWorker.d.ts"
+
 import * as playwright from 'playwright';
 
 import {isStopTest} from 'tape-six/State.js';
@@ -10,7 +12,7 @@ const supportedExtRe = /\.(?:js|mjs|htm|html)$/i;
 // the sibling tape-six-puppeteer exposes the same contract minus `webkit`.
 export const supportedBrowsers = ['chromium', 'firefox', 'webkit'];
 
-export class TestWorker extends /** @type {*} */ (EventServer) {
+export class TestWorker extends EventServer {
   #ready;
   constructor(reporter, numberOfTasks, options) {
     super(reporter, numberOfTasks, options);

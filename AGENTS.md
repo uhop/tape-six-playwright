@@ -34,18 +34,22 @@ PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64 npm ci          # or npm insta
 - **Install all engines:** `npm run browser:all` (Chromium + Firefox + WebKit)
 - **Lint:** `npm run lint` (Prettier check)
 - **Lint fix:** `npm run lint:fix` (Prettier write)
-- **JS type-check:** `npm run js-check` (`tsc --project tsconfig.check.json` — unused-var / undeclared-ref lint via `checkJs`; available, not part of `npm test`)
+- **Type check (sidecars):** `npm run ts-check` (strict `tsc` over `.d.ts` sidecars via `tsconfig.json`, no emit)
+- **Type check (sources):** `npm run js-check` (`tsc` over `.js` sources via `tsconfig.check.json`, no emit)
 
 ## Project structure
 
 ```
 tape-six-playwright/
 ├── package.json          # Package config; "tape6" section configures test discovery
+├── tsconfig.json         # strict ts-check config (.d.ts sidecars)
+├── tsconfig.check.json   # js-check config (TypeScript as linter for .js sources)
 ├── bin/
 │   ├── tape6-playwright.js     # CLI entry point (--self flag or delegates to -node.js)
 │   └── tape6-playwright-node.js # Main CLI: config, reporter, server, test execution
 ├── src/
 │   ├── TestWorker.js     # TestWorker class: launches the selected engine, runs each test in its own context
+│   ├── TestWorker.d.ts   # Type sidecar (@ts-self-types)
 │   └── controlFetch.js   # Control-plane client: cert-tolerant https GETs for the runner's server requests
 ├── tests/                # Test files (test-*.js, test-*.mjs, test-*.html)
 ├── wiki/                 # GitHub wiki documentation (submodule)
@@ -68,6 +72,7 @@ tape-six-playwright/
 - `TestWorker` (in `src/TestWorker.js`) extends `EventServer` from `tape-six`. It launches one headless browser of the selected engine via Playwright; each test file runs in its own `BrowserContext` → `Page` (full origin/storage isolation; `ignoreHTTPSErrors` when the server URL is `https:`), with `__tape6_reporter` and `__tape6_error` exposed as page functions and the test itself in an iframe inside that page.
 - **Browser selection:** `--browser <chromium|firefox|webkit>` / `-b` (env `TAPE6_BROWSER`, default `chromium`; precedence CLI > env > default) picks the engine. `TestWorker.#init()` dynamic-picks it via `playwright[name].launch(...)`; `--no-sandbox` is applied to Chromium only (Firefox/WebKit launch without it). `supportedBrowsers` (exported from `src/TestWorker.js`) is the single source of truth the CLI validates against. Only Chromium is fetched by `postinstall`; a missing/unrunnable engine fails the run with an `npx playwright install` / `install-deps` hint (a launch failure reports a failure, so the run exits non-zero rather than a false pass).
 - **Multi-engine fan-out:** `--browsers <list|all>` (env `TAPE6_BROWSERS`; overrides `--browser`; duplicates deduped) runs the suite once per engine sequentially — one `TestWorker` and a fresh reporter per engine (`setReporter(null)` + `initReporter()` between runs, so counts and summaries are per-engine) — then prints `Browsers: <name> PASS|FAIL, ...` and exits non-zero if any engine failed. A failed-to-launch engine records FAIL; remaining engines still run.
+- **Types:** `src/TestWorker.d.ts` is a hand-written sidecar (advertised via `// @ts-self-types` in `TestWorker.js`) typing `TestWorker` and `supportedBrowsers` on top of tape-six's shipped `EventServer` types; the worker's option keys (`browser`, `serverUrl`, `importmap`, `flags`) land on `EventServerOptions` via a module augmentation, so implementation reads are cast-free. `npm run ts-check` verifies it strictly.
 - For `.html` files: loaded as iframe `src` with query parameters (`id`, `test-file-name`, `flags`).
 - For `.js`/`.mjs` files: an HTML document is written into the iframe with an `importmap` and a dynamic module script.
 - Unsupported extensions (`.cjs`, `.ts`, `.cts`, `.mts`) are skipped with a warning.
