@@ -186,6 +186,7 @@ LLM-friendly documentation is available:
 
 The most recent releases:
 
+- 1.2.0 _Added HTTP/2 mode and multi-engine fan-out._
 - 1.1.0 _Added browser-engine selection (`--browser chromium|firefox|webkit`). Implemented the terminate protocol. Updated dependencies._
 - 1.0.3 _Replaced `process.exit()` with `process.exitCode` to prevent truncated output._
 - 1.0.2 _Added `--help`/`-h` and `--version`/`-v` CLI options._

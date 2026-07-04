@@ -210,6 +210,8 @@ Extends `EventServer` from `tape-six`. Manages the Playwright browser and per-ta
 
 Task completion is driven by each page's `close` event, not by a reported event, so a force-killed page (which emits nothing) still completes `close(id)` exactly once.
 
+Types ship as a hand-written sidecar (`src/TestWorker.d.ts`, advertised via `// @ts-self-types` in `TestWorker.js`): `TestWorker` and `supportedBrowsers`, built on tape-six's shipped `EventServer` types; the worker's option keys (`browser`, `serverUrl`, `importmap`, `flags`) are merged into `EventServerOptions` via a module augmentation.
+
 ### Browser engines
 
 The engine is chosen with `--browser <chromium|firefox|webkit>` / `-b`, or `TAPE6_BROWSER` (precedence: CLI > env > default `chromium`). The CLI validates the value against `supportedBrowsers` (exported from `src/TestWorker.js` — the single source of truth) and exits with an error on an unknown engine. `TestWorker.#init()` then launches it via `playwright[name].launch(...)`, applying `--no-sandbox` to Chromium only (Firefox and WebKit launch without it). The per-context model, iframe injection, data plane, and control channel are identical across all three engines — only the launched browser differs.
