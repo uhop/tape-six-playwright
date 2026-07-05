@@ -58,8 +58,6 @@
   },
   "homepage": "https://github.com/uhop/tape-six-playwright#readme",
   "github": "http://github.com/uhop/tape-six-playwright",
-  "llms": "https://raw.githubusercontent.com/uhop/tape-six-playwright/main/llms.txt",
-  "llmsFull": "https://raw.githubusercontent.com/uhop/tape-six-playwright/main/llms-full.txt",
   "files": [
     "bin",
     "src",
