@@ -136,7 +136,7 @@ TAPE6_FLAGS=FO tape6-playwright --start-server
 - Server URL: `TAPE6_SERVER_URL` env var, or `HOST`/`PORT`, or default `http://localhost:3000`.
 - Server endpoints used: `GET /--tests` (test file list), `GET /--patterns?q=...` (filtered file list), `GET /--importmap` (import map).
 - HTTP/2 (tape-six 1.12+): enable with `--h2`, `TAPE6_PROTOCOL=h2`, or `tape6.server.protocol` in config — the runner resolves flag > env > config exactly like the server, upgrades the server URL to `https:`, and passes `--h2` to a self-launched server. The h2 server mode is Node-only; under Bun/Deno the server child is spawned with `node` from `PATH`. HTTP/1.1 stays the default (self-signed TLS blocks service-worker registration; h2 exists for h2-only features such as Chromium's `fetch()` request-body streaming).
-- Certificates in h2 mode: browser contexts run with `ignoreHTTPSErrors`; the runner's own control requests (`src/controlFetch.js`) go through `node:https` with trust scoped to those requests — `TAPE6_CERT` pinned as CA when set, else the server's cached auto-generated certificate (`node_modules/.cache/tape6/cert.pem`), else relaxed verification. Never process-wide (`NODE_TLS_REJECT_UNAUTHORIZED` is not touched).
+- Certificates in h2 mode: browser contexts run with `ignoreHTTPSErrors`; the runner's own control requests (tape-six's `utils/controlFetch.js`) go through `node:https` with trust scoped to those requests — `TAPE6_CERT` pinned as CA when set, else the server's cached auto-generated certificate (`node_modules/.cache/tape6/cert.pem`), else relaxed verification. Never process-wide (`NODE_TLS_REJECT_UNAUTHORIZED` is not touched).
 
 ## Configuration
 
@@ -194,7 +194,7 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 3. Initializes the reporter via `initReporter()` from `tape-six`.
 4. Ensures `tape6-server` is reachable (auto-starts if `--start-server`, passing `--h2` for an `https:` URL; under Bun/Deno the h2 server child runs on `node`). Probes have a per-request deadline; a TLS-vs-plaintext mismatch is reported explicitly, and self-launch waits briefly for the port to free after one (chained h1 → h2 runs).
 5. Fetches test files from server via `GET /--patterns?q=...` (if patterns given) or `GET /--tests`.
-6. Fetches importmap from `GET /--importmap`. All control requests go through `src/controlFetch.js`, which tolerates the server's self-signed certificate on `https:` with request-scoped trust.
+6. Fetches importmap from `GET /--importmap`. All control requests go through tape-six's `utils/controlFetch.js`, which tolerates the server's self-signed certificate on `https:` with request-scoped trust.
 7. For each selected engine (one by default; several with `--browsers`), creates a `TestWorker` instance and executes all test files — a fresh reporter per engine so counts and summaries are per-engine.
 8. Reports final results (plus a per-engine `Browsers: ... PASS|FAIL` line when fanning out) and exits with code 0 (success) or 1 (any failure on any engine).
 9. Kills auto-started server on exit.
@@ -256,7 +256,7 @@ This is the driver-backed browser's answer to "no in-page force-kill": a hung, n
 
 ## Dependencies
 
-- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `getConfig`, `initReporter`, `showInfo`, `printFlagOptions`, `runtime`), `test.js`, `utils/timer.js`.
+- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `getConfig`, `initReporter`, `showInfo`, `printFlagOptions`, `runtime`), `test.js`, `utils/timer.js`, `utils/controlFetch.js` (`createControlFetch`, `isProtocolMismatch`).
 - **`playwright`** — headless browser automation. Bundled Chromium installed via `postinstall`.
 
 ## Writing tests
