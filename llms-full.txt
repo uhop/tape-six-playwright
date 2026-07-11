@@ -189,9 +189,11 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 
 ### Main CLI (`bin/tape6-playwright-node.js`)
 
-1. Parses CLI arguments via `getOptions()` from `tape-six` (`--flags`, `--par`, `--browser`, `--start-server`, `--h2`, `--server-url`, `--info`, positional test patterns) and validates `--browser` against the supported engines.
+A single `runDriverCli({packageUrl, commandName, description, supportedBrowsers, TestWorker})` call into `tape-six/driver/cli.js` (the browser-driver kit, tape-six 1.15.0+). The kit owns the whole driver-bin flow:
+
+1. Parses CLI arguments (`--flags`, `--par`, `--browser`, `--browsers`, `--start-server`, `--h2`, `--server-url`, `--info`, positional test patterns) and validates the engine selection against `supportedBrowsers`.
 2. Resolves the protocol the way the server does (`--h2` > `TAPE6_PROTOCOL` > `tape6.server.protocol` config > `h1`); in h2 mode upgrades the server URL scheme to `https:`.
-3. Initializes the reporter via `initReporter()` from `tape-six`.
+3. Initializes the reporter.
 4. Ensures `tape6-server` is reachable (auto-starts if `--start-server`, passing `--h2` for an `https:` URL; under Bun/Deno the h2 server child runs on `node`). Probes have a per-request deadline; a TLS-vs-plaintext mismatch is reported explicitly, and self-launch waits briefly for the port to free after one (chained h1 → h2 runs).
 5. Fetches test files from server via `GET /--patterns?q=...` (if patterns given) or `GET /--tests`.
 6. Fetches importmap from `GET /--importmap`. All control requests go through tape-six's `utils/controlFetch.js`, which tolerates the server's self-signed certificate on `https:` with request-scoped trust.
@@ -201,20 +203,18 @@ The `importmap` section is served by `tape6-server` at `/--importmap` and inject
 
 ### TestWorker (`src/TestWorker.js`)
 
-Extends `EventServer` from `tape-six`. Manages the Playwright browser and per-task contexts:
+The Playwright adapter for the kit base in `tape-six/driver/TestWorker.js`. The base owns the task lifecycle — per-task `BrowserContext` → `Page` (full origin/storage isolation) with completion driven by the page `close` event, the `__tape6_reporter` / `__tape6_error` page functions, iframe injection via `tape-six/driver/bootstrap.js`, cooperative drain + `graceTimeout` force-kill, launch-failure reporting (a missing engine fails the run rather than reporting a false pass), and cleanup. The adapter supplies the driver-specific members:
 
-- **`constructor(reporter, numberOfTasks, options)`** — launches one headless browser of the selected engine (`options.browser`, default `chromium`) via `playwright[name].launch(...)`; `--no-sandbox` is applied to Chromium only.
-- **`makeTask(fileName)`** — creates a fresh `BrowserContext` → `Page` for the test (full origin/storage isolation; `ignoreHTTPSErrors` when the server URL is `https:`, for the h2 self-signed certificate), exposes `__tape6_reporter` and `__tape6_error` on that page, navigates it to the server origin, and runs the test file in an iframe inside it. Returns a task ID. If the browser failed to launch (e.g. the engine isn't installed), it reports a failure so the run exits non-zero rather than reporting a false pass.
-- **`destroyTask(id, reason)`** — the control plane. `done` closes the task's context; an abort reason (`failOnce` / `timeout`) drains the running test (posts `tape6-terminate` into the iframe), then force-kills it by closing the context after `graceTimeout`.
-- **`cleanup()`** — closes the browser.
+- **`supportedBrowsers`** — `['chromium', 'firefox', 'webkit']`; also exported and passed to `runDriverCli` as the single source of truth for CLI validation.
+- **`pageErrorEvent`** — `'pageerror'` (Playwright's page-level error event).
+- **`launchBrowser(name)`** — `playwright[name].launch(...)`, headless, `--no-sandbox` on Chromium only; wraps a launch failure with an `npx playwright install` / `install-deps` hint.
+- **`newContext(browser, {insecure})`** — an isolated context per task, created with `ignoreHTTPSErrors` when the server URL is `https:` (the h2 self-signed certificate).
 
-Task completion is driven by each page's `close` event, not by a reported event, so a force-killed page (which emits nothing) still completes `close(id)` exactly once.
-
-Types ship as a hand-written sidecar (`src/TestWorker.d.ts`, advertised via `// @ts-self-types` in `TestWorker.js`): `TestWorker` and `supportedBrowsers`, built on tape-six's shipped `EventServer` types; the worker's option keys (`browser`, `serverUrl`, `importmap`, `flags`) are merged into `EventServerOptions` via a module augmentation.
+Types ship as a hand-written sidecar (`src/TestWorker.d.ts`, advertised via `// @ts-self-types` in `TestWorker.js`), built on tape-six's shipped driver-kit types: it narrows the kit base's deliberately-`any` driver handles to Playwright's `Browser` / `BrowserContext`. The pre-kit `EventServerOptions` module augmentation and constructor union are gone — tape-six ≥ 1.14.1 typings made both unnecessary.
 
 ### Browser engines
 
-The engine is chosen with `--browser <chromium|firefox|webkit>` / `-b`, or `TAPE6_BROWSER` (precedence: CLI > env > default `chromium`). The CLI validates the value against `supportedBrowsers` (exported from `src/TestWorker.js` — the single source of truth) and exits with an error on an unknown engine. `TestWorker.#init()` then launches it via `playwright[name].launch(...)`, applying `--no-sandbox` to Chromium only (Firefox and WebKit launch without it). The per-context model, iframe injection, data plane, and control channel are identical across all three engines — only the launched browser differs.
+The engine is chosen with `--browser <chromium|firefox|webkit>` / `-b`, or `TAPE6_BROWSER` (precedence: CLI > env > default `chromium`). The CLI validates the value against `supportedBrowsers` (exported from `src/TestWorker.js` — the single source of truth) and exits with an error on an unknown engine. The kit base then resolves it and calls the adapter's `launchBrowser(name)` — `playwright[name].launch(...)`, applying `--no-sandbox` to Chromium only (Firefox and WebKit launch without it). The per-context model, iframe injection, data plane, and control channel are identical across all three engines — only the launched browser differs.
 
 `postinstall` fetches only Chromium; Firefox and WebKit are installed on demand (`npm run browser:all`, or `npx playwright install firefox webkit`, plus `npx playwright install-deps` on Linux). Requesting an engine that isn't installed (or can't run for lack of system libraries) surfaces a clear hint and fails the run.
 
@@ -247,16 +247,16 @@ iframe tape-six → ProxyReporter → window.parent.__tape6_reporter(id, event)
 
 ### Worker control channel
 
-`TestWorker` implements the provider side of tape-six's worker control channel (full spec in the tape-six repo's `dev-docs/worker-control-channel.md`). The runner stops a worker through `destroyTask(id, reason)`:
+`TestWorker` implements the provider side of tape-six's worker control channel (full spec in the tape-six repo's `dev-docs/worker-control-channel.md`) — the implementation lives in the kit base and is inherited by the adapter. The runner stops a worker through `destroyTask(id, reason)`:
 
 - `done` — the test finished; close its context now.
 - `failOnce` / `timeout` (abort) — drain cooperatively first: post `{type: 'tape6-terminate'}` into the test's iframe so `tape-six` arms `stopTest` and fires the abort signal, unwinding the test at its next assertion and running its cleanup hooks. If the test doesn't exit within `graceTimeout` (`TAPE6_GRACE_TIMEOUT`), force-kill it by closing the `BrowserContext` — the real kill an in-page iframe can't perform on itself.
 
-This is the driver-backed browser's answer to "no in-page force-kill": a hung, non-cooperative test that ignores the drain is still stopped, because the Node-side driver closes its context. The cooperative-drain half depends on a `tape-six` that ships the hub control plane (the in-iframe `tape6-terminate` listener); the force-kill backstop works with any version.
+This is the driver-backed browser's answer to "no in-page force-kill": a hung, non-cooperative test that ignores the drain is still stopped, because the Node-side driver closes its context.
 
 ## Dependencies
 
-- **`tape-six`** — the core test library. Imports: `State.js`, `utils/EventServer.js`, `utils/config.js` (`getOptions`, `getConfig`, `initReporter`, `showInfo`, `printFlagOptions`, `runtime`), `test.js`, `utils/timer.js`, `utils/controlFetch.js` (`createControlFetch`, `isProtocolMismatch`).
+- **`tape-six`** (^1.15.0 — the driver-kit floor) — the core test library. Imports: `driver/TestWorker.js` (the kit base class), `driver/cli.js` (`runDriverCli`), plus `utils/config.js` (`printFlagOptions`) in the wrapper bin.
 - **`playwright`** — headless browser automation. Bundled Chromium installed via `postinstall`.
 
 ## Writing tests
