@@ -186,6 +186,7 @@ LLM-friendly documentation is available:
 
 The most recent releases:
 
+- 1.2.2 _Adopted tape-six's shared browser-driver kit (requires tape-six 1.15+). Updated dependencies._
 - 1.2.1 _Fixed server readiness probing. Updated dependencies._
 - 1.2.0 _Added HTTP/2 mode and multi-engine fan-out._
 - 1.1.0 _Added browser-engine selection (`--browser chromium|firefox|webkit`). Implemented the terminate protocol. Updated dependencies._

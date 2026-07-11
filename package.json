@@ -1,6 +1,6 @@
 {
   "name": "tape-six-playwright",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Playwright-based browser test runner for tape-six. Runs each test file in its own browser context (Chromium, Firefox, or WebKit). Works with Node, Deno, and Bun.",
   "type": "module",
   "bin": {
